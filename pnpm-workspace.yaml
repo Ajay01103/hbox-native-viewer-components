@@ -1,0 +1,170 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# Windows native builds (AGP prefab, CMake, ninja) write paths such as
+#   <dep>/android/build/intermediates/cxx/RelWithDebInfo/<hash>/logs/arm64-v8a/prefab_command.bat
+# Inside node_modules those exceed MAX_PATH (260) and processes fail to start.
+# Keeping the virtual store at the drive root keeps them short, while
+# node_modules itself stays a real directory so Metro loads a single copy of
+# every package (a junctioned node_modules breaks bundling).
+nodeLinker: isolated
+virtualStoreDir: C:/hbn/.pnpm
+
+# One version of everything shared. Packages reference these as `catalog:` in
+# devDependencies so every workspace copy resolves identically.
+catalog:
+  "@babel/core": ^7.28.0
+  "@shopify/flash-list": ^2.3.3
+  "@tamagui/config": ^3.2.1
+  "@tamagui/lucide-icons": ^2.0.0-rc.26
+  "@types/react": ^19.2.0
+  babel-preset-expo: ~58.0.24
+  expo: ~58.0.23
+  expo-document-picker: ~58.0.4
+  expo-file-system: ~58.0.13
+  expo-status-bar: ~58.0.4
+  react: 19.3.0
+  react-native: 0.88.1
+  react-native-builder-bob: ^0.44.1
+  react-native-gesture-handler: ~3.3.0
+  # Pinned exactly: 0.37.2 was published too recently for the registry policy.
+  react-native-nitro-modules: 0.37.1
+  react-native-reanimated: ^4.7.1
+  react-native-safe-area-context: ~5.11.1
+  react-native-svg: 15.16.0
+  react-native-worklets: ~0.13.0
+  nitrogen: 0.37.1
+  tamagui: ^3.2.1
+  typescript: ^6.0.0
+  turbo: ^2.11.10
+minimumReleaseAgeExclude:
+  - "@expo/cli@58.1.19"
+  - "@expo/config-plugins@58.0.12"
+  - "@expo/config@58.0.11"
+  - "@expo/env@2.5.4"
+  - "@expo/fingerprint@0.21.9"
+  - "@expo/inline-modules@0.2.9"
+  - "@expo/local-build-cache-provider@58.0.11"
+  - "@expo/log-box@58.0.15"
+  - "@expo/metro-config@58.0.21"
+  - "@expo/prebuild-config@58.0.19"
+  - "@expo/router-server@58.0.21"
+  - "@tamagui/accordion@3.2.1"
+  - "@tamagui/adapt@3.2.1"
+  - "@tamagui/alert-dialog@3.2.1"
+  - "@tamagui/animate-presence@3.2.1"
+  - "@tamagui/animate@3.2.1"
+  - "@tamagui/animation-helpers@3.2.1"
+  - "@tamagui/animations-css@3.2.1"
+  - "@tamagui/animations-react-native@3.2.1"
+  - "@tamagui/avatar@3.2.1"
+  - "@tamagui/button@3.2.1"
+  - "@tamagui/card@3.2.1"
+  - "@tamagui/checkbox-headless@3.2.1"
+  - "@tamagui/checkbox@3.2.1"
+  - "@tamagui/collapsible@3.2.1"
+  - "@tamagui/collection@3.2.1"
+  - "@tamagui/compose-refs@3.2.1"
+  - "@tamagui/config-default@3.2.1"
+  - "@tamagui/constants@3.2.1"
+  - "@tamagui/context-menu@3.2.1"
+  - "@tamagui/core@3.2.1"
+  - "@tamagui/create-context@3.2.1"
+  - "@tamagui/create-menu@3.2.1"
+  - "@tamagui/cubic-bezier-animator@3.2.1"
+  - "@tamagui/dialog@3.2.1"
+  - "@tamagui/dismissable@3.2.1"
+  - "@tamagui/dom@3.2.1"
+  - "@tamagui/element@3.2.1"
+  - "@tamagui/fake-react-native@3.2.1"
+  - "@tamagui/field@3.2.1"
+  - "@tamagui/floating@3.2.1"
+  - "@tamagui/focus-guard@3.2.1"
+  - "@tamagui/focus-scope@3.2.1"
+  - "@tamagui/focusable@3.2.1"
+  - "@tamagui/font-size@3.2.1"
+  - "@tamagui/form@3.2.1"
+  - "@tamagui/get-font-sized@3.2.1"
+  - "@tamagui/get-token@3.2.1"
+  - "@tamagui/group@3.2.1"
+  - "@tamagui/helpers-tamagui@3.2.1"
+  - "@tamagui/helpers@3.2.1"
+  - "@tamagui/image@3.2.1"
+  - "@tamagui/input@3.2.1"
+  - "@tamagui/is-equal-shallow@3.2.1"
+  - "@tamagui/label@3.2.1"
+  - "@tamagui/linear-gradient@3.2.1"
+  - "@tamagui/list-item@3.2.1"
+  - "@tamagui/menu@3.2.1"
+  - "@tamagui/native@3.2.1"
+  - "@tamagui/normalize-css-color@3.2.1"
+  - "@tamagui/polyfill-dev@3.2.1"
+  - "@tamagui/popover@3.2.1"
+  - "@tamagui/popper@3.2.1"
+  - "@tamagui/portal@3.2.1"
+  - "@tamagui/progress@3.2.1"
+  - "@tamagui/radio-group@3.2.1"
+  - "@tamagui/radio-headless@3.2.1"
+  - "@tamagui/react-native-media-driver@3.2.1"
+  - "@tamagui/react-native-pan-responder@3.2.1"
+  - "@tamagui/react-native-types@3.2.1"
+  - "@tamagui/react-native-use-pressable@3.2.1"
+  - "@tamagui/react-native-use-responder-events@3.2.1"
+  - "@tamagui/remove-scroll@3.2.1"
+  - "@tamagui/roving-focus@3.2.1"
+  - "@tamagui/scroll-view@3.2.1"
+  - "@tamagui/select@3.2.1"
+  - "@tamagui/separator@3.2.1"
+  - "@tamagui/shapes@3.2.1"
+  - "@tamagui/sheet@3.2.1"
+  - "@tamagui/shorthands@3.2.1"
+  - "@tamagui/simple-hash@3.2.1"
+  - "@tamagui/slider@3.2.1"
+  - "@tamagui/spacer@3.2.1"
+  - "@tamagui/spinner@3.2.1"
+  - "@tamagui/stacks@3.2.1"
+  - "@tamagui/start-transition@3.2.1"
+  - "@tamagui/style-grammar@3.2.1"
+  - "@tamagui/switch-headless@3.2.1"
+  - "@tamagui/switch@3.2.1"
+  - "@tamagui/tabs-headless@3.2.1"
+  - "@tamagui/tabs@3.2.1"
+  - "@tamagui/text@3.2.1"
+  - "@tamagui/theme@3.2.1"
+  - "@tamagui/toast@3.2.1"
+  - "@tamagui/toggle-group@3.2.1"
+  - "@tamagui/tooltip@3.2.1"
+  - "@tamagui/types@3.2.1"
+  - "@tamagui/ui@3.2.1"
+  - "@tamagui/use-async@3.2.1"
+  - "@tamagui/use-callback-ref@3.2.1"
+  - "@tamagui/use-constant@3.2.1"
+  - "@tamagui/use-controllable-state@3.2.1"
+  - "@tamagui/use-debounce@3.2.1"
+  - "@tamagui/use-did-finish-ssr@3.2.1"
+  - "@tamagui/use-direction@3.2.1"
+  - "@tamagui/use-element-layout@3.2.1"
+  - "@tamagui/use-escape-keydown@3.2.1"
+  - "@tamagui/use-event@3.2.1"
+  - "@tamagui/use-force-update@3.2.1"
+  - "@tamagui/use-presence@3.2.1"
+  - "@tamagui/use-previous@3.2.1"
+  - "@tamagui/use-window-dimensions@3.2.1"
+  - "@tamagui/visually-hidden@3.2.1"
+  - "@tamagui/web@3.2.1"
+  - "@tamagui/z-index-stack@3.2.1"
+  - babel-preset-expo@58.0.24
+  - expo-asset@58.0.20
+  - expo-constants@58.0.15
+  - expo-modules-autolinking@58.0.17
+  - expo-modules-core@58.0.30
+  - expo-modules-jsi@58.0.22
+  - expo@58.0.23
+  - tamagui@3.2.1
+  - "@tamagui/animations-motion@3.2.1"
+  - "@tamagui/animations-reanimated@3.2.1"
+  - "@tamagui/config@3.2.1"
+  - "@tamagui/create-system-font@3.2.1"
+  - "@tamagui/create-theme@3.2.1"
+  - "@tamagui/themes@3.2.1"

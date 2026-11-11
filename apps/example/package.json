@@ -1,0 +1,41 @@
+{
+  "name": "example",
+  "version": "0.0.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hbox/react-native-nitro-docx": "workspace:*",
+    "@hbox/react-native-nitro-pdf": "workspace:*",
+    "@hbox/rn-docx-viewer": "workspace:*",
+    "@hbox/rn-pdf-viewer": "workspace:*",
+    "@hbox/rn-pdf-viewer-tamagui": "workspace:*",
+    "@shopify/flash-list": "catalog:",
+    "@tamagui/config": "catalog:",
+    "@tamagui/lucide-icons": "catalog:",
+    "expo": "catalog:",
+    "expo-document-picker": "catalog:",
+    "expo-file-system": "catalog:",
+    "expo-status-bar": "catalog:",
+    "react": "catalog:",
+    "react-native": "catalog:",
+    "react-native-gesture-handler": "catalog:",
+    "react-native-nitro-modules": "catalog:",
+    "react-native-reanimated": "catalog:",
+    "react-native-safe-area-context": "catalog:",
+    "react-native-svg": "catalog:",
+    "react-native-worklets": "catalog:",
+    "tamagui": "catalog:"
+  },
+  "devDependencies": {
+    "@babel/core": "catalog:",
+    "babel-preset-expo": "catalog:",
+    "@types/react": "catalog:",
+    "typescript": "catalog:"
+  }
+}

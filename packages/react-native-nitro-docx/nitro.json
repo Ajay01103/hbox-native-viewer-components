@@ -1,0 +1,44 @@
+{
+  "$schema": "https://nitro.margelo.com/nitro.schema.json",
+  "cxxNamespace": ["hboxdocx"],
+  "ios": {
+    "iosModuleName": "HboxNitroDocx"
+  },
+  "android": {
+    "androidNamespace": ["hboxdocx"],
+    "androidCxxLibName": "HboxNitroDocx"
+  },
+  "autolinking": {
+    "DocxEngine": {
+      "ios": {
+        "language": "swift",
+        "implementationClassName": "HybridDocxEngine"
+      },
+      "android": {
+        "language": "kotlin",
+        "implementationClassName": "HybridDocxEngine"
+      }
+    },
+    "DocxView": {
+      "ios": {
+        "language": "swift",
+        "implementationClassName": "HybridDocxView"
+      },
+      "android": {
+        "language": "kotlin",
+        "implementationClassName": "HybridDocxView"
+      }
+    },
+    "DocxThumbnail": {
+      "ios": {
+        "language": "swift",
+        "implementationClassName": "HybridDocxThumbnail"
+      },
+      "android": {
+        "language": "kotlin",
+        "implementationClassName": "HybridDocxThumbnail"
+      }
+    }
+  },
+  "ignorePaths": ["node_modules"]
+}

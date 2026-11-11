@@ -1,0 +1,39 @@
+{
+  "name": "@hbox/rn-pdf-viewer-tamagui",
+  "version": "0.0.0",
+  "description": "Optional Tamagui skin for @hbox/rn-pdf-viewer",
+  "license": "MIT",
+  "source": "./src/index.ts",
+  "main": "./lib/module/index.js",
+  "types": "./lib/typescript/src/index.d.ts",
+  "react-native": "./src/index.ts",
+  "sideEffects": false,
+  "files": ["src", "lib", "!**/__tests__"],
+  "scripts": {
+    "build": "bob build",
+    "check-types": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@hbox/rn-pdf-viewer": ">=0.0.0",
+    "react": "*",
+    "react-native": "*",
+    "tamagui": "*"
+  },
+  "devDependencies": {
+    "@hbox/rn-pdf-viewer": "workspace:*",
+    "@types/react": "catalog:",
+    "react": "catalog:",
+    "react-native": "catalog:",
+    "react-native-builder-bob": "catalog:",
+    "tamagui": "catalog:",
+    "typescript": "catalog:"
+  },
+  "react-native-builder-bob": {
+    "source": "src",
+    "output": "lib",
+    "targets": [
+      ["module", { "esm": false }],
+      ["typescript", { "project": "tsconfig.build.json" }]
+    ]
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "tasks": {
+    "codegen": {
+      "inputs": ["src/specs/**", "nitro.json"],
+      "outputs": ["nitrogen/generated/**"]
+    },
+    "build": {
+      "dependsOn": ["^build", "codegen"],
+      "outputs": ["lib/**"]
+    },
+    "check-types": {
+      "dependsOn": ["^build", "codegen"]
+    },
+    "lint": {},
+    "dev": {
+      "persistent": true,
+      "cache": false
+    }
+  }
+}

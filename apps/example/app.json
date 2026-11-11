@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "PDF Kit Example",
+    "slug": "rn-pdf-viewer-example",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "dev.hbox.pdfexample"
+    },
+    "android": {
+      "package": "dev.hbox.pdfexample"
+    }
+  }
+}

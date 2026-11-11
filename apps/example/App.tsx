@@ -1,0 +1,279 @@
+import { Component, useCallback, useState } from 'react'
+import type { ErrorInfo, ReactNode } from 'react'
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
+import { StatusBar } from 'expo-status-bar'
+import * as DocumentPicker from 'expo-document-picker'
+import { File, Paths } from 'expo-file-system'
+import { TamaguiProvider } from 'tamagui'
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
+import { PDFViewer } from '@hbox/rn-pdf-viewer'
+import { DocxViewer } from '@hbox/rn-docx-viewer'
+import { tamaguiConfig } from './tamagui.config'
+
+type DocumentKind = 'pdf' | 'docx'
+
+interface OpenedDocument {
+  kind: DocumentKind
+  name: string
+  path: string
+  /** Raw bytes, used when the picked file could not be copied to disk. */
+  base64: string | null
+  size: number | null
+}
+
+function formatSize(bytes: number | null): string {
+  if (!bytes || bytes <= 0) return 'unknown size'
+  const megabytes = bytes / (1024 * 1024)
+  return megabytes >= 1 ? `${megabytes.toFixed(2)} MB` : `${Math.round(bytes / 1024)} KB`
+}
+
+function kindOf(name: string): DocumentKind {
+  return name.toLowerCase().endsWith('.docx') ? 'docx' : 'pdf'
+}
+
+/**
+ * A fatal JS error closes a release build, so the viewers are wrapped: any
+ * render failure shows the message instead of taking the app down.
+ */
+class ViewerErrorBoundary extends Component<
+  { children: ReactNode },
+  { message: string | null }
+> {
+  state: { message: string | null } = { message: null }
+
+  static getDerivedStateFromError(error: Error) {
+    return { message: error.message || 'Unknown rendering error' }
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.warn('Document viewer failed to render', error, info.componentStack)
+  }
+
+  render() {
+    if (this.state.message) {
+      return (
+        <View style={styles.empty}>
+          <Text style={styles.emptyTitle}>This document could not be displayed</Text>
+          <Text style={styles.emptyBody}>{this.state.message}</Text>
+        </View>
+      )
+    }
+    return this.props.children
+  }
+}
+
+function DocumentScreen() {
+  const [document, setDocument] = useState<OpenedDocument | null>(null)
+  const [selectedText, setSelectedText] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const pickDocument = useCallback(async () => {
+    setError(null)
+    setBusy(true)
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          'application/pdf',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ],
+        copyToCacheDirectory: true,
+        multiple: false,
+      })
+      if (result.canceled) return
+
+      const asset = result.assets[0]
+      if (!asset) return
+
+      // Copy into the app cache so the native engine always receives a stable
+      // file:// path it can hand to PDFKit / PDFium / the DOCX parser. Some
+      // providers hand over a content:// URI that copies to a 0-byte file; the
+      // native readers then see "the file is empty", so verify the result and
+      // fall back to the raw bytes for the DOCX engine.
+      const kind = kindOf(asset.name)
+      const source = new File(asset.uri)
+      const target = new File(Paths.cache, `opened-${Date.now()}.${kind}`)
+      if (target.exists) target.delete()
+      try {
+        source.copy(target)
+      } catch (cause) {
+        console.warn('Could not cache the picked document', cause)
+      }
+
+      const copiedBytes = target.exists ? target.size ?? 0 : 0
+      let base64: string | null = null
+      if (copiedBytes <= 0 && kind === 'docx') {
+        base64 = await source.base64()
+      }
+
+      setSelectedText('')
+      setDocument({
+        kind,
+        name: asset.name,
+        path: target.uri,
+        base64,
+        size: copiedBytes > 0 ? copiedBytes : asset.size ?? null,
+      })
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not open that file')
+    } finally {
+      setBusy(false)
+    }
+  }, [])
+
+  return (
+    <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
+      <StatusBar style="dark" />
+
+      <View style={styles.header}>
+        <View style={styles.headerText}>
+          <Text style={styles.title}>Document Viewer Kit</Text>
+          <Text style={styles.subtitle} numberOfLines={1}>
+            {document
+              ? `${document.name} · ${formatSize(document.size)}`
+              : 'No document open (PDF or DOCX)'}
+          </Text>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open a PDF or DOCX from this device"
+          style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+          onPress={pickDocument}
+          disabled={busy}
+        >
+          {busy ? (
+            <ActivityIndicator color="#ffffff" size="small" />
+          ) : (
+            <Text style={styles.buttonText}>Open</Text>
+          )}
+        </Pressable>
+      </View>
+
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {selectedText ? (
+        <Text style={styles.selection} numberOfLines={2}>
+          Selected: {selectedText}
+        </Text>
+      ) : null}
+
+      <View style={styles.viewer}>
+        <ViewerErrorBoundary key={document?.path ?? 'empty'}>
+          {document?.kind === 'pdf' ? (
+          <PDFViewer
+            src={document.path}
+            showRotateControls
+            onTextSelected={setSelectedText}
+          />
+        ) : document?.kind === 'docx' ? (
+          <DocxViewer
+            src={document.base64 ? { base64: document.base64 } : { uri: document.path }}
+            fileName={document.name}
+            defaultZoom="fit-width"
+            onRequestUpload={pickDocument}
+            onError={(failure) => setError(`${failure.code}: ${failure.message}`)}
+          />
+        ) : (
+          <View style={styles.empty}>
+            <Text style={styles.emptyTitle}>Pick a PDF or DOCX to get started</Text>
+            <Text style={styles.emptyBody}>
+              PDFs render through PDFKit / PDFium. DOCX files are parsed and paginated
+              natively, then painted page by page.
+            </Text>
+          </View>
+          )}
+        </ViewerErrorBoundary>
+      </View>
+    </SafeAreaView>
+  )
+}
+
+export default function App() {
+  // The Tamagui skins expect the consumer to own the config and provider.
+  return (
+    <TamaguiProvider config={tamaguiConfig} defaultTheme="light">
+      <SafeAreaProvider>
+        <DocumentScreen />
+      </SafeAreaProvider>
+    </TamaguiProvider>
+  )
+}
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: '#f4f5f7',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+  },
+  headerText: {
+    flex: 1,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  subtitle: {
+    marginTop: 2,
+    fontSize: 13,
+    color: '#6b7280',
+  },
+  button: {
+    minWidth: 88,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: '#1f6feb',
+  },
+  buttonPressed: {
+    opacity: 0.8,
+  },
+  buttonText: {
+    color: '#ffffff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  error: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    color: '#b00020',
+    fontSize: 13,
+  },
+  selection: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    color: '#374151',
+    fontSize: 13,
+  },
+  viewer: {
+    flex: 1,
+    overflow: 'hidden',
+    backgroundColor: '#ffffff',
+  },
+  empty: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    gap: 8,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  emptyBody: {
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
+    color: '#6b7280',
+  },
+})
