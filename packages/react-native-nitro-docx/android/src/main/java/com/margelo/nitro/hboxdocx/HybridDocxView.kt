@@ -74,6 +74,9 @@ class HybridDocxView(reactContext: ThemedReactContext) : HybridDocxViewSpec() {
     listView.onTextCopied = {
       onSelectionChange?.f?.invoke(true)
     }
+    listView.onZoomSettled = { zoom ->
+      onZoomSettled?.f?.invoke(zoom.toDouble())
+    }
   }
 
   override fun afterUpdate() {

@@ -6,6 +6,7 @@ import type { Rotation } from './types'
 
 export interface PdfPageProps {
   documentId: string
+  /** 1-based page number, as shown to the user. */
   page: number
   scale: number
   rotation: Rotation
@@ -35,7 +36,8 @@ export function PdfPage({
       <PdfPageView
         style={styles.surface}
         documentId={documentId}
-        page={page}
+        // The native renderer is 0-based; the viewer API is 1-based.
+        page={Math.max(0, page - 1)}
         scale={scale}
         rotation={rotation}
         highlights={highlights ?? []}

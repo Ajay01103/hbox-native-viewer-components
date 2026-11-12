@@ -31,7 +31,9 @@ class DocxThumbnailView(context: Context) : View(context) {
         }
       if (pageIndex < 0 || pageIndex >= layout.pageCount) return
 
-      canvas.scale(pageScale, pageScale)
+      // `pageScale` is dp per point; the canvas works in pixels.
+      val pxPerPoint = pageScale * resources.displayMetrics.density
+      canvas.scale(pxPerPoint, pxPerPoint)
       layout.drawPage(canvas, pageIndex, theme)
     } catch (error: Throwable) {
       // Thumbnails are decorative; never let one abort the host view.

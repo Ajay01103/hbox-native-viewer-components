@@ -1,44 +1,41 @@
-node_modules
-.turbo
-lib
+# dependencies and local tooling
+node_modules/
+.turbo/
+.freebuff/
+
+# generated package output
+lib/
+
+# logs and OS metadata
 *.log
 .DS_Store
-.freebuff
-md
+
+# local documentation/planning notes
+md/
 
 # native build output
-apps/*/ios/Pods
-apps/*/ios/build
-apps/*/android/build
-apps/*/android/.cxx
-apps/*/android/app/build
+**/Pods/
+**/build/
+**/.cxx/
+**/DerivedData/
+**/.gradle/
+**/local.properties
+**/*.keystore
+**/*.hprof
+**/*.iml
+**/gradle/gradle-daemon-jvm.properties
 
 # expo
 .expo
-apps/example/dist
+apps/example/dist/
 
 # example native project generated output
-apps/example/android/.gradle/
 apps/example/android/.kotlin/
-apps/example/android/.cxx/
-apps/example/android/build/
-apps/example/android/app/build/
-apps/example/ios/Pods/
-apps/example/ios/build/
-apps/example/ios/DerivedData/
 apps/example/ios/**/*.xcuserstate
 apps/example/ios/.xcode.env.local
 
 # locally produced test artifacts
-/dist
+dist/
 
-# native package build output
-packages/*/android/build/
-packages/*/android/.cxx/
-packages/*/android/.gradle/
-packages/*/ios/Pods/
-packages/*/ios/build/
-packages/*/ios/DerivedData/
-
-# generated Nitro output
+# generated Nitro sources are recreated by each native package's prepack script
 packages/*/nitrogen/generated/

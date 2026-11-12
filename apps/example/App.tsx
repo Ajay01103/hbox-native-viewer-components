@@ -1,6 +1,6 @@
 import { Component, useCallback, useState } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, NativeModules, Pressable, Share, StyleSheet, Text, View } from 'react-native'
 import { StatusBar } from 'expo-status-bar'
 import * as DocumentPicker from 'expo-document-picker'
 import { File, Paths } from 'expo-file-system'
@@ -92,7 +92,9 @@ function DocumentScreen() {
       // fall back to the raw bytes for the DOCX engine.
       const kind = kindOf(asset.name)
       const source = new File(asset.uri)
-      const target = new File(Paths.cache, `opened-${Date.now()}.${kind}`)
+      // Keep the original name in the cache copy: the share sheet shows it.
+      const safeName = asset.name.replace(/[^A-Za-z0-9._-]+/g, '_') || `document.${kind}`
+      const target = new File(Paths.cache, `${Date.now()}-${safeName}`)
       if (target.exists) target.delete()
       try {
         source.copy(target)
@@ -121,10 +123,37 @@ function DocumentScreen() {
     }
   }, [])
 
+  // The bottom edge matters: the viewer tool strip must stay above the system
+  // navigation bar, otherwise its taps land on Home/Recents.
+  // Android's JS Share module only sends text, so the file is handed to the
+  // native DocumentShare module (FileProvider content URI) instead.
+  const shareDocument = useCallback(async () => {
+    if (!document) return
+    const mimeType =
+      document.kind === 'docx'
+        ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        : 'application/pdf'
+    const bridge = NativeModules.DocumentShare as
+      | { shareFile: (path: string, mimeType: string, title: string) => Promise<boolean> }
+      | undefined
+    if (bridge) {
+      try {
+        await bridge.shareFile(document.path, mimeType, document.name)
+        return
+      } catch (cause) {
+        console.warn('Could not share the document file', cause)
+      }
+    }
+    await Share.share({ message: document.name })
+  }, [document])
+
   return (
-    <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.root} edges={['top', 'left', 'right', 'bottom']}>
       <StatusBar style="dark" />
 
+      {/* The PDF chrome carries its own app bar (back, tools), so the screen
+          header is only shown for the empty state and for DOCX documents. */}
+      {document?.kind === 'pdf' ? null : (
       <View style={styles.header}>
         <View style={styles.headerText}>
           <Text style={styles.title}>Document Viewer Kit</Text>
@@ -148,6 +177,7 @@ function DocumentScreen() {
           )}
         </Pressable>
       </View>
+      )}
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {selectedText ? (
@@ -159,11 +189,12 @@ function DocumentScreen() {
       <View style={styles.viewer}>
         <ViewerErrorBoundary key={document?.path ?? 'empty'}>
           {document?.kind === 'pdf' ? (
-          <PDFViewer
-            src={document.path}
-            showRotateControls
-            onTextSelected={setSelectedText}
-          />
+            <PDFViewer
+              src={document.path}
+              onBack={() => setDocument(null)}
+              onShare={shareDocument}
+              onTextSelected={setSelectedText}
+            />
         ) : document?.kind === 'docx' ? (
           <DocxViewer
             src={document.base64 ? { base64: document.base64 } : { uri: document.path }}

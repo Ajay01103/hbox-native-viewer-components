@@ -43,6 +43,9 @@ export const DocxViewer = forwardRef<DocxViewerApi, DocxViewerProps>(function Do
   const isDark = controlledDark ?? internalDark
 
   const [zoom, setZoom] = useState<Zoom>(defaultZoom)
+  // Native pinch zoom is a multiplier on top of the resolved scale. It is
+  // reported back here only so the toolbar can show the real zoom level.
+  const [pinchScale, setPinchScale] = useState(1)
   const [page, setPage] = useState(1)
   const [nonce, setNonce] = useState(0)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
@@ -62,6 +65,11 @@ export const DocxViewer = forwardRef<DocxViewerApi, DocxViewerProps>(function Do
     () => (info ? resolveScale(zoom, pageSize, viewport) : 1),
     [info, pageSize, viewport, zoom],
   )
+
+  useEffect(() => {
+    // A new base scale (zoom button, rotation, resize) supersedes the pinch.
+    setPinchScale(1)
+  }, [scale])
 
   const setDark = useCallback(
     (next: boolean) => {
@@ -169,6 +177,13 @@ export const DocxViewer = forwardRef<DocxViewerApi, DocxViewerProps>(function Do
     [],
   )
 
+  const onNativeZoomSettled = useMemo(
+    () => ({
+      f: (value: number) => setPinchScale(value > 0 ? value : 1),
+    }),
+    [],
+  )
+
   const downloadSource = useMemo(
     () => (typeof src === 'string' ? { uri: src } : src),
     [src],
@@ -183,6 +198,7 @@ export const DocxViewer = forwardRef<DocxViewerApi, DocxViewerProps>(function Do
           pageCount={pageCount}
           zoom={zoom}
           scale={scale}
+          pinch={pinchScale}
           isDark={isDark}
           showUpload={showUpload}
           showDownload={showDownload}
@@ -252,6 +268,7 @@ export const DocxViewer = forwardRef<DocxViewerApi, DocxViewerProps>(function Do
             onLayoutProgress={onNativeLayoutProgress}
             onCommentPress={onNativeCommentPress}
             onSelectionChange={onNativeSelection}
+            onZoomSettled={onNativeZoomSettled}
             style={styles.native}
           />
         )}

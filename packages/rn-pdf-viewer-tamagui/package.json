@@ -11,6 +11,7 @@
   "files": ["src", "lib", "!**/__tests__"],
   "scripts": {
     "build": "bob build",
+    "prepack": "pnpm build",
     "check-types": "tsc --noEmit"
   },
   "peerDependencies": {

@@ -9,6 +9,8 @@ export interface DocxToolbarProps {
   pageCount: number
   zoom: Zoom
   scale: number
+  /** Live pinch multiplier reported by the native page surface. */
+  pinch?: number
   isDark: boolean
   showUpload?: boolean
   showDownload?: boolean
@@ -32,6 +34,7 @@ export function DocxToolbar({
   pageCount,
   zoom,
   scale,
+  pinch = 1,
   isDark,
   showUpload = true,
   showDownload = true,
@@ -64,7 +67,9 @@ export function DocxToolbar({
           accessibilityLabel="Cycle zoom mode"
         >
           <Text style={[styles.zoomText, { color: palette.text }]}>
-            {zoomLabel(zoom, scale)}
+            {pinch > 1.02 || pinch < 0.98
+              ? `${Math.round(scale * pinch * 100)}%`
+              : zoomLabel(zoom, scale)}
           </Text>
         </Pressable>
         <Pressable
@@ -135,63 +140,69 @@ export function DocxToolbar({
 }
 
 const styles = StyleSheet.create({
+  // Compact enough to fit a phone width: the previous fixed widths pushed the
+  // last button (Open) off-screen on 393dp-wide devices.
   root: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   fileName: {
     flex: 1,
-    fontSize: 13,
+    minWidth: 0,
+    fontSize: 12,
     fontWeight: '600',
   },
   group: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
+    flexShrink: 0,
   },
   iconButton: {
-    minWidth: 30,
-    height: 30,
+    minWidth: 26,
+    height: 28,
+    paddingHorizontal: 2,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 6,
     borderWidth: StyleSheet.hairlineWidth,
   },
   icon: {
-    fontSize: 16,
-    lineHeight: 18,
+    fontSize: 15,
+    lineHeight: 17,
   },
   zoomLabel: {
-    minWidth: 68,
-    height: 30,
+    minWidth: 54,
+    height: 28,
+    paddingHorizontal: 4,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 6,
     borderWidth: StyleSheet.hairlineWidth,
   },
   zoomText: {
-    fontSize: 12,
+    fontSize: 11.5,
   },
   pageLabel: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontVariant: ['tabular-nums'],
-    minWidth: 46,
+    minWidth: 38,
     textAlign: 'center',
   },
   textButton: {
-    height: 30,
-    paddingHorizontal: 10,
+    height: 28,
+    paddingHorizontal: 7,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 6,
     borderWidth: StyleSheet.hairlineWidth,
   },
   small: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '600',
   },
 })

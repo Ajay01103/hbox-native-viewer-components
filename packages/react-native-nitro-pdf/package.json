@@ -25,6 +25,7 @@
   "scripts": {
     "codegen": "nitrogen",
     "build": "bob build",
+    "prepack": "pnpm codegen && pnpm build",
     "check-types": "tsc --noEmit"
   },
   "peerDependencies": {

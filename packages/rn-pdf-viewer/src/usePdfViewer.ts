@@ -75,7 +75,9 @@ export function usePdfViewer({
         setHitIndex(0)
         return
       }
-      const results = await document.search(trimmed)
+      const found = await document.search(trimmed)
+      // Native hits are 0-based; the viewer API is 1-based.
+      const results = found.map((hit) => ({ ...hit, page: hit.page + 1 }))
       setHits(results)
       setHitIndex(0)
       const first = results[0]
@@ -108,7 +110,7 @@ export function usePdfViewer({
       if (!document) {
         return Promise.reject(new Error('No PDF document is open'))
       }
-      return document.renderThumbnail(targetPage, width)
+      return document.renderThumbnail(Math.max(0, targetPage - 1), width)
     },
     [document],
   )

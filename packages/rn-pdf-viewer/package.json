@@ -11,14 +11,16 @@
   "files": ["src", "lib", "!**/__tests__"],
   "scripts": {
     "build": "bob build",
+    "prepack": "pnpm build",
     "check-types": "tsc --noEmit"
   },
-  "peerDependencies": {
+    "peerDependencies": {
     "@hbox/react-native-nitro-pdf": ">=0.0.0",
     "@shopify/flash-list": "*",
     "react": "*",
     "react-native": "*",
-    "react-native-nitro-modules": "*"
+    "react-native-nitro-modules": "*",
+    "react-native-svg": ">=13"
   },
   "devDependencies": {
     "@hbox/react-native-nitro-pdf": "workspace:*",
@@ -28,6 +30,7 @@
     "react-native": "catalog:",
     "react-native-builder-bob": "catalog:",
     "react-native-nitro-modules": "catalog:",
+    "react-native-svg": "catalog:",
     "typescript": "catalog:"
   },
   "react-native-builder-bob": {
