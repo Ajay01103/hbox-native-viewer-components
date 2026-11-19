@@ -6,17 +6,18 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.RectF
 import android.os.Handler
 import android.os.Looper
 import android.view.GestureDetector
 import android.view.MotionEvent
-import android.view.ScaleGestureDetector
 import android.view.VelocityTracker
 import android.view.View
 import android.view.ViewConfiguration
 import android.widget.OverScroller
 import java.util.concurrent.Executors
 import kotlin.math.abs
+import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -125,35 +126,54 @@ class DocxPageListView(context: Context) : View(context) {
   private var dragging = false
   private var velocity: VelocityTracker? = null
 
+  // Two-finger gesture: span and scale when the second finger landed.
+  private var twoFinger = false
+  private var gestureSpan = 0f
+  private var gesturePinch = 1f
+  private var gestureMidX = 0f
+  private var gestureMidY = 0f
+
+  // Text selection, as character offsets into the laid out document.
+  private var selecting = false
+  private var selPageIndex = -1
+  private var selStart = -1
+  private var selEnd = -1
+  private val copyChip = RectF()
+
+  private val selectionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    color = 0x2E3B82F6
+    style = Paint.Style.FILL
+  }
+  private val selectionEdgePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    color = 0xFF3B82F6.toInt()
+    style = Paint.Style.STROKE
+    strokeWidth = density
+  }
+  private val chipFillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    color = Color.WHITE
+    style = Paint.Style.FILL
+  }
+  private val chipShadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    color = 0x26000000
+    style = Paint.Style.FILL
+  }
+  private val chipTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    color = 0xFF1B1D22.toInt()
+    textSize = 12f * density
+    typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+    textAlign = Paint.Align.CENTER
+  }
+
   private val gestureDetector = GestureDetector(
     context,
     object : GestureDetector.SimpleOnGestureListener() {
       override fun onLongPress(event: MotionEvent) {
+        lastTouchX = event.x
+        lastTouchY = event.y
+        // Long press selects the word under the finger; the Copy chip then
+        // copies only that range.
+        if (beginSelectionAt(event.x, event.y)) return
         copyPageText(visiblePageIndex())
-      }
-    },
-  )
-
-  private val scaleDetector = ScaleGestureDetector(
-    context,
-    object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-      private var startPinch = 1f
-
-      override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
-        startPinch = pinch
-        scroller.forceFinished(true)
-        dragging = false
-        return true
-      }
-
-      override fun onScale(detector: ScaleGestureDetector): Boolean {
-        val next = (startPinch * detector.scaleFactor).coerceIn(MIN_PINCH, MAX_PINCH)
-        applyPinch(next, detector.focusX, detector.focusY)
-        return true
-      }
-
-      override fun onScaleEnd(detector: ScaleGestureDetector) {
-        onZoomSettled?.invoke(pinch)
       }
     },
   )
@@ -183,6 +203,11 @@ class DocxPageListView(context: Context) : View(context) {
   }
 
   private fun pageStride(): Float = pageHeightPx() + gapPx
+
+  private fun pageLeft(geometry: DocxPageGeometry): Float {
+    val pageWidth = geometry.width * pxPerPoint()
+    return if (pageWidth <= width) (width - pageWidth) / 2f else -offsetX
+  }
 
   private fun contentHeight(): Float {
     val count = pageCount()
@@ -324,11 +349,33 @@ class DocxPageListView(context: Context) : View(context) {
   }
 
   override fun onTouchEvent(event: MotionEvent): Boolean {
-    scaleDetector.onTouchEvent(event)
+    if (event.pointerCount >= 2) {
+      handleTwoFinger(event)
+      return true
+    }
+    if (twoFinger) {
+      // Pinch finished; a finger still down only pans from here.
+      twoFinger = false
+      onZoomSettled?.invoke(pinch)
+      velocity?.recycle()
+      velocity = null
+      if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+        dragging = false
+        return true
+      }
+      lastTouchX = event.x
+      lastTouchY = event.y
+      dragging = true
+    }
     gestureDetector.onTouchEvent(event)
 
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN -> {
+        if (selecting && copyChip.contains(event.x, event.y)) {
+          copySelection()
+          return true
+        }
+        if (selecting) clearSelection()
         scroller.forceFinished(true)
         lastTouchX = event.x
         lastTouchY = event.y
@@ -339,22 +386,28 @@ class DocxPageListView(context: Context) : View(context) {
 
       MotionEvent.ACTION_MOVE -> {
         velocity?.addMovement(event)
-        if (!scaleDetector.isInProgress) {
-          val dx = lastTouchX - event.x
-          val dy = lastTouchY - event.y
-          if (!dragging && (abs(dx) > touchSlop || abs(dy) > touchSlop)) dragging = true
-          if (dragging) {
-            scrollByPixels(dx, dy)
-            lastTouchX = event.x
-            lastTouchY = event.y
-            parent?.requestDisallowInterceptTouchEvent(true)
-          }
+        if (selecting) {
+          // Dragging with a selection already started grows it instead of
+          // scrolling the page.
+          extendSelection(event.x, event.y)
+          lastTouchX = event.x
+          lastTouchY = event.y
+          return true
+        }
+        val dx = lastTouchX - event.x
+        val dy = lastTouchY - event.y
+        if (!dragging && (abs(dx) > touchSlop || abs(dy) > touchSlop)) dragging = true
+        if (dragging) {
+          scrollByPixels(dx, dy)
+          lastTouchX = event.x
+          lastTouchY = event.y
+          parent?.requestDisallowInterceptTouchEvent(true)
         }
       }
 
       MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
         val tracker = velocity
-        if (tracker != null && !scaleDetector.isInProgress) {
+        if (tracker != null && !selecting) {
           tracker.computeCurrentVelocity(1000)
           val yVelocity = tracker.yVelocity
           if (abs(yVelocity) > 120f) {
@@ -369,6 +422,137 @@ class DocxPageListView(context: Context) : View(context) {
       }
     }
     return true
+  }
+
+  /**
+   * Two fingers navigate: the span between them scales around the midpoint and
+   * the midpoint's own movement pans. Raw pointer positions rather than a
+   * ScaleGestureDetector, so the pinch and the pan share one handler.
+   */
+  private fun handleTwoFinger(event: MotionEvent) {
+    val span = spanAt(event)
+    val midX = midAt(event, horizontal = true)
+    val midY = midAt(event, horizontal = false)
+    if (!twoFinger) {
+      twoFinger = true
+      clearSelection()
+      scroller.forceFinished(true)
+      dragging = false
+      velocity?.recycle()
+      velocity = null
+      gestureSpan = span
+      gesturePinch = pinch
+      gestureMidX = midX
+      gestureMidY = midY
+      return
+    }
+    when (event.actionMasked) {
+      MotionEvent.ACTION_MOVE -> {
+        val minSpan = 24f * density
+        if (gestureSpan < minSpan) {
+          // Fingers landed almost on top of each other: start measuring once
+          // they are far enough apart to give a stable ratio.
+          gestureSpan = span
+          gesturePinch = pinch
+        } else if (span > minSpan) {
+          val next = (gesturePinch * (span / gestureSpan)).coerceIn(MIN_PINCH, MAX_PINCH)
+          applyPinch(next, midX, midY)
+        }
+        scrollByPixels(gestureMidX - midX, gestureMidY - midY)
+      }
+      MotionEvent.ACTION_POINTER_UP -> {
+        gestureSpan = span
+        gesturePinch = pinch
+      }
+      else -> Unit
+    }
+    gestureMidX = midX
+    gestureMidY = midY
+  }
+
+  private fun spanAt(event: MotionEvent): Float {
+    val count = event.pointerCount
+    if (count < 2) return 0f
+    var total = 0f
+    var pairs = 0
+    for (i in 0 until count - 1) {
+      for (j in i + 1 until count) {
+        total += hypot(event.getX(j) - event.getX(i), event.getY(j) - event.getY(i))
+        pairs++
+      }
+    }
+    return if (pairs == 0) 0f else total / pairs
+  }
+
+  private fun midAt(event: MotionEvent, horizontal: Boolean): Float {
+    val count = event.pointerCount.coerceAtLeast(1)
+    var total = 0f
+    for (i in 0 until count) total += if (horizontal) event.getX(i) else event.getY(i)
+    return total / count
+  }
+
+  // ---- text selection ------------------------------------------------------
+
+  /** Point in page space for a view coordinate, plus which page it landed on. */
+  private fun pagePointAt(x: Float, y: Float): Triple<Int, Float, Float>? {
+    val layout = docLayout ?: return null
+    val count = pageCount()
+    val scale = pxPerPoint()
+    if (count <= 0 || scale <= 0f || y < padTopPx) return null
+    val stride = pageStride()
+    if (stride <= 0f) return null
+    val index = ((y - padTopPx) / stride).toInt().coerceIn(0, count - 1)
+    val top = padTopPx + index * stride - scrollY
+    val geometry = layout.model.geometry
+    val pageX = (x - pageLeft(geometry)) / scale
+    val pageY = (y - top) / scale
+    if (pageY < 0f || pageY > geometry.height) return null
+    return Triple(index, pageX, pageY)
+  }
+
+  private fun beginSelectionAt(x: Float, y: Float): Boolean {
+    val layout = docLayout ?: return false
+    val hit = pagePointAt(x, y) ?: return false
+    val offset = layout.offsetForPoint(hit.first, hit.second, hit.third)
+    if (offset < 0) return false
+    val range = layout.wordRangeAt(offset)
+    if (range.second <= range.first) return false
+    selecting = true
+    selPageIndex = hit.first
+    selStart = range.first
+    selEnd = range.second
+    invalidate()
+    return true
+  }
+
+  private fun extendSelection(x: Float, y: Float) {
+    val layout = docLayout ?: return
+    val hit = pagePointAt(x, y) ?: return
+    val offset = layout.offsetForPoint(hit.first, hit.second, hit.third)
+    if (offset < 0) return
+    selEnd = offset
+    invalidate()
+  }
+
+  private fun clearSelection() {
+    if (!selecting) return
+    selecting = false
+    selPageIndex = -1
+    selStart = -1
+    selEnd = -1
+    copyChip.setEmpty()
+    invalidate()
+  }
+
+  private fun copySelection() {
+    val layout = docLayout ?: return
+    val text = layout.textBetween(selStart, selEnd).trim()
+    if (text.isNotEmpty()) {
+      val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+      clipboard?.setPrimaryClip(ClipData.newPlainText("Selection", text))
+      onTextCopied?.invoke()
+    }
+    clearSelection()
   }
 
   private fun copyPageText(pageIndex: Int) {
@@ -429,6 +613,58 @@ class DocxPageListView(context: Context) : View(context) {
     }
 
     if (current == null) drawPreparingLabel(canvas)
+    if (selecting) drawSelection(canvas)
+  }
+
+  /** Selected lines plus the Copy chip that copies just that range. */
+  private fun drawSelection(canvas: Canvas) {
+    val layout = docLayout ?: return
+    if (selPageIndex < 0) return
+    val rects = layout.selectionRects(selPageIndex, selStart, selEnd)
+    if (rects.isEmpty()) {
+      copyChip.setEmpty()
+      return
+    }
+    val geometry = layout.model.geometry
+    val scale = pxPerPoint()
+    if (scale <= 0f) return
+    val left = pageLeft(geometry)
+    val top = padTopPx + selPageIndex * pageStride() - scrollY
+    var minTop = Float.MAX_VALUE
+    var maxRight = -Float.MAX_VALUE
+    rects.forEach { box ->
+      val l = left + box.left * scale
+      val t = top + box.top * scale
+      val r = left + box.right * scale
+      val b = top + box.bottom * scale
+      canvas.drawRect(l, t, r, b, selectionPaint)
+      canvas.drawRect(l, t, r, b, selectionEdgePaint)
+      if (t < minTop) minTop = t
+      if (r > maxRight) maxRight = r
+    }
+
+    val halfWidth = 36f * density
+    val halfHeight = 17f * density
+    val cx = min(width - halfWidth - 6f * density, maxRight).coerceAtLeast(halfWidth + 6f * density)
+    val cy = (minTop - halfHeight - 10f * density).coerceAtLeast(halfHeight + 4f * density)
+    copyChip.set(cx - halfWidth, cy - halfHeight, cx + halfWidth, cy + halfHeight)
+    canvas.drawRoundRect(
+      copyChip.left,
+      copyChip.top + 2f * density,
+      copyChip.right,
+      copyChip.bottom + 2f * density,
+      halfHeight,
+      halfHeight,
+      chipShadowPaint,
+    )
+    canvas.drawRoundRect(copyChip, halfHeight, halfHeight, chipFillPaint)
+    canvas.drawRoundRect(copyChip, halfHeight, halfHeight, selectionEdgePaint)
+    canvas.drawText(
+      "Copy",
+      cx,
+      cy - (chipTextPaint.ascent() + chipTextPaint.descent()) / 2f,
+      chipTextPaint,
+    )
   }
 
   private fun drawPlaceholder(

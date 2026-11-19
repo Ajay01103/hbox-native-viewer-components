@@ -1,65 +1,81 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import { StyleSheet, View } from 'react-native'
-import type { LayoutChangeEvent } from 'react-native'
-import { DocxView } from '@hbox/react-native-nitro-docx'
-import type { DocComment, OutlineItem, TrackedChangesMode } from '@hbox/react-native-nitro-docx'
-import { DocxToolbar } from './DocxToolbar'
-import { CommentsPanel, OutlinePanel, ThumbnailPanel } from './Panels'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react'
+import type { ForwardedRef } from 'react'
+import { Platform, StyleSheet, View } from 'react-native'
+import { DocxEditorView } from '@hbox/react-native-nitro-docx'
+import type { TrackedChangesMode } from '@hbox/react-native-nitro-docx'
+import { DocxViewerFallback } from './DocxViewerFallback'
 import { ErrorState, LoadingState } from './States'
 import { resolvePalette } from './palette'
-import type { DocxViewerApi, DocxViewerProps, Zoom } from './types'
+import { resolveScale, zoomLabel } from './zoom'
 import { useDocx } from './useDocx'
-import { resolveScale } from './zoom'
+import type { DocxViewerApi, DocxViewerProps, Zoom } from './types'
 
-type OpenPanel = 'none' | 'pages' | 'outline' | 'comments'
+const TRACKED_NEXT: Record<TrackedChangesMode, TrackedChangesMode> = {
+  markup: 'final',
+  final: 'original',
+  original: 'markup',
+}
 
-export const DocxViewer = forwardRef<DocxViewerApi, DocxViewerProps>(function DocxViewer(
-  {
-    src,
-    fileName,
-    defaultZoom = 'fit-width',
-    theme = 'light',
-    isDark: controlledDark,
-    onIsDarkChange,
-    showToolbar = true,
-    showUpload = true,
-    showDownload = true,
-    showThumbnails = true,
-    showOutline = true,
-    showComments = true,
-    toolbarActions,
-    trackedChanges = 'markup',
-    onTrackedChangesChange,
-    onRequestUpload,
-    onRequestDownload,
-    onLoad,
-    onPageChange,
-    onError,
-    style,
-  },
-  ref,
-) {
+/**
+ * DOCX viewer and reader.
+ *
+ * On Android the whole viewer is native: the toolbar, the Pages/Outline/
+ * Comments tab strip, the panels and the page canvas are Android views
+ * (`DocxEditorView`), so the chrome shares the native painter's palette and
+ * never fights the page surface for gestures. React keeps the engine, the zoom
+ * mode and the theme, and receives every control press as a callback.
+ *
+ * iOS keeps the React chrome until the native viewer is ported there.
+ */
+export const DocxViewer = forwardRef<DocxViewerApi, DocxViewerProps>(function DocxViewer(props, ref) {
+  // Custom toolbar nodes and a hidden toolbar cannot be painted natively yet, so
+  // those hosts keep the React chrome instead of silently losing features.
+  if (Platform.OS !== 'android' || props.toolbarActions || props.showToolbar === false) {
+    return <DocxViewerFallback {...props} ref={ref} />
+  }
+  return <NativeDocxViewer {...props} forwardedRef={ref} />
+})
+
+function NativeDocxViewer({
+  src,
+  fileName,
+  defaultZoom = 'fit-width',
+  theme = 'light',
+  isDark: controlledDark,
+  onIsDarkChange,
+  showUpload = true,
+  showDownload = true,
+  showThumbnails = true,
+  showOutline = true,
+  showComments = true,
+  style,
+  trackedChanges = 'markup',
+  onTrackedChangesChange,
+  onRequestUpload,
+  onRequestDownload,
+  onLoad,
+  onPageChange,
+  onError,
+  forwardedRef,
+}: DocxViewerProps & { forwardedRef: ForwardedRef<DocxViewerApi> }) {
   const [internalDark, setInternalDark] = useState(theme === 'dark')
   const isDark = controlledDark ?? internalDark
 
   const [zoom, setZoom] = useState<Zoom>(defaultZoom)
-  // Native pinch zoom is a multiplier on top of the resolved scale. It is
-  // reported back here only so the toolbar can show the real zoom level.
+  // Native pinch zoom multiplies the resolved scale; it is reported back only
+  // so the toolbar can show the real level.
   const [pinchScale, setPinchScale] = useState(1)
   const [page, setPage] = useState(1)
   const [nonce, setNonce] = useState(0)
+  // The native chrome reports the page canvas size in dp, which is what the fit
+  // modes are resolved against.
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
-  const [panel, setPanel] = useState<OpenPanel>('none')
-  const [hasSelection, setHasSelection] = useState(false)
-  const [layoutFinal, setLayoutFinal] = useState(true)
-  const totalRef = useRef(1)
 
   const { engine, info, loading, error } = useDocx({ src, fileName, onLoad, onError })
 
   const palette = useMemo(() => resolvePalette(isDark), [isDark])
   const pageCount = info?.pageCount ?? 0
   const pageSize = info?.pageSize ?? { width: 595, height: 842 }
-  totalRef.current = pageCount
 
   const scale = useMemo(
     () => (info ? resolveScale(zoom, pageSize, viewport) : 1),
@@ -84,7 +100,6 @@ export const DocxViewer = forwardRef<DocxViewerApi, DocxViewerProps>(function Do
       const clamped = Math.max(1, Math.min(next, Math.max(1, pageCount)))
       setPage(clamped)
       setNonce((value) => value + 1)
-      setPanel('none')
     },
     [pageCount],
   )
@@ -115,278 +130,131 @@ export const DocxViewer = forwardRef<DocxViewerApi, DocxViewerProps>(function Do
     [engine, goToPage, goToAnchor, info, isDark, page, pageCount, zoom],
   )
 
-  useImperativeHandle(ref, () => api, [api])
-
-  useEffect(() => {
-    if (!hasSelection) return
-    const timer = setTimeout(() => setHasSelection(false), 1800)
-    return () => clearTimeout(timer)
-  }, [hasSelection])
-
-  const onLayout = useCallback((event: LayoutChangeEvent) => {
-    const { width, height } = event.nativeEvent.layout
-    setViewport({ width, height })
-  }, [])
-
-  const onSelectOutline = useCallback(
-    (item: OutlineItem) => {
-      goToPage(item.page)
-    },
-    [goToPage],
-  )
-
-  const onSelectComment = useCallback(
-    (comment: DocComment) => {
-      goToPage(comment.page)
-    },
-    [goToPage],
-  )
-
-  const onNativePageChange = useMemo(
-    () => ({
-      f: (nextPage: number, total: number) => {
-        const clamped = Math.max(1, Math.min(nextPage, Math.max(1, total)))
-        setPage(clamped)
-        onPageChange?.(clamped, total)
-      },
-    }),
-    [onPageChange],
-  )
-
-  const onNativeLayoutProgress = useMemo(
-    () => ({
-      f: (_laidOut: number, final: boolean) => setLayoutFinal(final),
-    }),
-    [],
-  )
-
-  const onNativeCommentPress = useMemo(
-    () => ({
-      f: (id: string) => {
-        const match = info?.comments.find((comment) => comment.id === id)
-        if (match) setPanel('comments')
-      },
-    }),
-    [info],
-  )
-
-  const onNativeSelection = useMemo(
-    () => ({
-      f: (selected: boolean) => setHasSelection(selected),
-    }),
-    [],
-  )
-
-  const onNativeZoomSettled = useMemo(
-    () => ({
-      f: (value: number) => setPinchScale(value > 0 ? value : 1),
-    }),
-    [],
-  )
+  useImperativeHandle(forwardedRef, () => api, [api])
 
   const downloadSource = useMemo(
     () => (typeof src === 'string' ? { uri: src } : src),
     [src],
   )
 
-  return (
-    <View style={[styles.root, { backgroundColor: palette.appBg }, style]}>
-      {showToolbar && info ? (
-        <DocxToolbar
-          fileName={info.fileName || 'Document'}
-          page={page}
-          pageCount={pageCount}
-          zoom={zoom}
-          scale={scale}
-          pinch={pinchScale}
-          isDark={isDark}
-          showUpload={showUpload}
-          showDownload={showDownload}
-          actions={toolbarActions}
-          palette={palette}
-          onZoomChange={setZoom}
-          onToggleDark={setDark}
-          onUpload={onRequestUpload}
-          onDownload={onRequestDownload ? () => onRequestDownload(downloadSource) : undefined}
-          onPrevious={() => goToPage(page - 1)}
-          onNext={() => goToPage(page + 1)}
-        />
-      ) : null}
+  const outlineJson = useMemo(() => JSON.stringify(info?.outline ?? []), [info])
+  const commentsJson = useMemo(() => JSON.stringify(info?.comments ?? []), [info])
 
-      {showToolbar && info && (showThumbnails || showOutline || showComments) ? (
-        <View style={[styles.tabs, { borderBottomColor: palette.pageBorder }]}>
-          {showThumbnails ? (
-            <Tab label="Pages" active={panel === 'pages'} palette={palette} onPress={() => setPanel(panel === 'pages' ? 'none' : 'pages')} />
-          ) : null}
-          {showOutline ? (
-            <Tab label="Outline" active={panel === 'outline'} palette={palette} onPress={() => setPanel(panel === 'outline' ? 'none' : 'outline')} />
-          ) : null}
-          {showComments ? (
-            <Tab
-              label={`Comments${info.comments.length ? ` (${info.comments.length})` : ''}`}
-              active={panel === 'comments'}
-              palette={palette}
-              onPress={() => setPanel(panel === 'comments' ? 'none' : 'comments')}
-            />
-          ) : null}
-          {onTrackedChangesChange ? (
-            <Tab
-              label={TRACKED_LABEL[trackedChanges]}
-              active={trackedChanges !== 'markup'}
-              palette={palette}
-              onPress={() =>
-                onTrackedChangesChange(
-                  trackedChanges === 'markup'
-                    ? 'final'
-                    : trackedChanges === 'final'
-                      ? 'original'
-                      : 'markup',
-                )
-              }
-            />
-          ) : null}
-          {!layoutFinal ? (
-            <Tab label="Laying out…" active={false} palette={palette} onPress={() => undefined} />
-          ) : null}
-        </View>
-      ) : null}
+  const handlers = useMemo(
+    () => ({
+      onPageChange: {
+        f: (nextPage: number, total: number) => {
+          const clamped = Math.max(1, Math.min(nextPage, Math.max(1, total)))
+          setPage(clamped)
+          onPageChange?.(clamped, total)
+        },
+      },
+      onZoomSettled: {
+        f: (value: number) => setPinchScale(value > 0 ? value : 1),
+      },
+      onViewport: {
+        f: (width: number, height: number) => {
+          setViewport((current) =>
+            current.width === width && current.height === height ? current : { width, height },
+          )
+        },
+      },
+      onZoomOut: {
+        f: () =>
+          setZoom((current) =>
+            typeof current === 'number' ? Math.max(0.25, current - 0.1) : scale,
+          ),
+      },
+      onZoomIn: {
+        f: () =>
+          setZoom((current) =>
+            typeof current === 'number' ? Math.min(4, current + 0.1) : scale + 0.1,
+          ),
+      },
+      onZoomReset: { f: () => setZoom('fit-width') },
+      onPrevious: { f: () => goToPage(page - 1) },
+      onNext: { f: () => goToPage(page + 1) },
+      onToggleTheme: { f: () => setDark(!isDark) },
+      onUpload: { f: () => onRequestUpload?.() },
+      onDownload: { f: () => onRequestDownload?.(downloadSource) },
+      onCycleChanges: { f: () => onTrackedChangesChange?.(TRACKED_NEXT[trackedChanges]) },
+    }),
+    [
+      goToPage,
+      isDark,
+      onPageChange,
+      onRequestDownload,
+      onRequestUpload,
+      onTrackedChangesChange,
+      downloadSource,
+      page,
+      scale,
+      setDark,
+      trackedChanges,
+    ],
+  )
 
-      <View style={styles.viewer} onLayout={onLayout}>
-        {error ? (
-          <ErrorState error={error} palette={palette} />
-        ) : loading || !info ? (
-          <LoadingState palette={palette} />
-        ) : (
-          <DocxView
-            documentId={engine.id}
-            scale={scale}
-            scrollToPage={page}
-            scrollNonce={nonce}
-            palette={palette}
-            trackedChanges={trackedChanges}
-            onPageChange={onNativePageChange}
-            onLayoutProgress={onNativeLayoutProgress}
-            onCommentPress={onNativeCommentPress}
-            onSelectionChange={onNativeSelection}
-            onZoomSettled={onNativeZoomSettled}
-            style={styles.native}
-          />
-        )}
-
-        {hasSelection ? (
-          <View style={[styles.toast, { backgroundColor: palette.text }]}>
-            <LoadingStateLabel palette={palette} />
-          </View>
-        ) : null}
+  if (error) {
+    return (
+      <View style={[styles.root, { backgroundColor: palette.appBg }, style]}>
+        <ErrorState error={error} palette={palette} />
       </View>
+    )
+  }
 
-      {panel === 'pages' && info ? (
-        <ThumbnailPanel
-          documentId={engine.id}
-          pageCount={pageCount}
-          pageSize={pageSize}
-          currentPage={page}
-          palette={palette}
-          onSelect={goToPage}
-          onClose={() => setPanel('none')}
-        />
-      ) : null}
-      {panel === 'outline' && info ? (
-        <OutlinePanel
-          outline={info.outline}
-          palette={palette}
-          onSelect={onSelectOutline}
-          onClose={() => setPanel('none')}
-        />
-      ) : null}
-      {panel === 'comments' && info ? (
-        <CommentsPanel
-          comments={info.comments}
-          palette={palette}
-          onSelect={onSelectComment}
-          onClose={() => setPanel('none')}
-        />
-      ) : null}
-    </View>
-  )
-})
+  if (loading || !info) {
+    return (
+      <View style={[styles.root, { backgroundColor: palette.appBg }, style]}>
+        <LoadingState palette={palette} />
+      </View>
+    )
+  }
 
-const TRACKED_LABEL: Record<TrackedChangesMode, string> = {
-  markup: 'Changes: markup',
-  final: 'Changes: final',
-  original: 'Changes: original',
-}
+  const pinched = pinchScale > 1.02 || pinchScale < 0.98
+  const label = pinched
+    ? `${Math.round(scale * pinchScale * 100)}%`
+    : zoomLabel(zoom, scale)
 
-function Tab({
-  label,
-  active,
-  palette,
-  onPress,
-}: {
-  label: string
-  active: boolean
-  palette: { text: string; muted: string; pageBorder: string }
-  onPress: () => void
-}) {
   return (
-    <View
-      style={[
-        styles.tab,
-        active && { backgroundColor: palette.pageBorder },
-      ]}
-    >
-      <Text onPress={onPress} style={[styles.tabText, { color: active ? palette.text : palette.muted }]}>
-        {label}
-      </Text>
-    </View>
+    <DocxEditorView
+      style={[styles.root, { backgroundColor: palette.appBg }, style]}
+      documentId={engine.id}
+      scale={scale}
+      scrollToPage={page}
+      scrollNonce={nonce}
+      palette={palette}
+      trackedChanges={trackedChanges}
+      fileName={info.fileName || fileName || 'Document'}
+      page={page}
+      pageCount={pageCount}
+      zoomLabel={label}
+      isDark={isDark}
+      showUpload={showUpload && Boolean(onRequestUpload)}
+      showDownload={showDownload && Boolean(onRequestDownload)}
+      showThumbnails={showThumbnails}
+      showOutline={showOutline}
+      showComments={showComments}
+      showChanges={Boolean(onTrackedChangesChange)}
+      outlineJson={outlineJson}
+      commentsJson={commentsJson}
+      onPageChange={handlers.onPageChange}
+      onZoomSettled={handlers.onZoomSettled}
+      onViewport={handlers.onViewport}
+      onZoomOut={handlers.onZoomOut}
+      onZoomIn={handlers.onZoomIn}
+      onZoomReset={handlers.onZoomReset}
+      onPrevious={handlers.onPrevious}
+      onNext={handlers.onNext}
+      onToggleTheme={handlers.onToggleTheme}
+      onUpload={handlers.onUpload}
+      onDownload={handlers.onDownload}
+      onCycleChanges={handlers.onCycleChanges}
+    />
   )
 }
-
-function LoadingStateLabel({ palette }: { palette: { pageBg: string; text: string } }) {
-  return <Text style={[styles.toastText, { color: palette.pageBg }]}>Page text copied</Text>
-}
-
-// Local import kept here to avoid a circular import with States.tsx helpers.
-import { Text } from 'react-native'
 
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-  },
-  viewer: {
-    flex: 1,
-    overflow: 'hidden',
-  },
-  native: {
-    flex: 1,
-  },
-  tabs: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  tab: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  tabText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  toast: {
-    position: 'absolute',
-    bottom: 20,
-    alignSelf: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-  },
-  toastText: {
-    fontSize: 12,
-    fontWeight: '600',
   },
 })

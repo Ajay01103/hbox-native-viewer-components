@@ -7,10 +7,24 @@ export { usePdfViewer } from './usePdfViewer'
 export type { UsePdfViewerOptions, UsePdfViewerResult } from './usePdfViewer'
 export { usePdfDocument } from './usePdfDocument'
 export type { PdfDocumentState } from './usePdfDocument'
-export { HIGHLIGHT_COLORS, inkPath, usePdfEditor } from './editor'
+export {
+  ANNOTATION_SCHEMA_VERSION,
+  HIGHLIGHT_COLORS,
+  decodeAnnotations,
+  encodeAnnotations,
+  inkPath,
+  migrateAnnotation,
+  readRect,
+  usePdfEditor,
+} from './editor'
+export type { AnnotationDocument } from './editor'
+export { buildMarkedPdf, normalisedRectToPdf, parseArgb, unsupportedKinds } from './exportPdf'
+export type { MarkedPdfOptions } from './exportPdf'
 export type {
   NewAnnotation,
   PdfAnnotation,
+  PdfMarkKind,
+  PdfRectTuple,
   PdfPoint,
   PdfRect,
   PdfTool,

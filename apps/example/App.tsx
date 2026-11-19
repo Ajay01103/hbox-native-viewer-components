@@ -1,4 +1,4 @@
-import { Component, useCallback, useState } from 'react'
+import { Component, useCallback, useRef, useState } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
 import { ActivityIndicator, NativeModules, Pressable, Share, StyleSheet, Text, View } from 'react-native'
 import { StatusBar } from 'expo-status-bar'
@@ -6,7 +6,8 @@ import * as DocumentPicker from 'expo-document-picker'
 import { File, Paths } from 'expo-file-system'
 import { TamaguiProvider } from 'tamagui'
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
-import { PDFViewer } from '@hbox/rn-pdf-viewer'
+import { PDFViewer, buildMarkedPdf } from '@hbox/rn-pdf-viewer'
+import type { PdfAnnotation } from '@hbox/rn-pdf-viewer'
 import { DocxViewer } from '@hbox/rn-docx-viewer'
 import { tamaguiConfig } from './tamagui.config'
 
@@ -25,6 +26,32 @@ function formatSize(bytes: number | null): string {
   if (!bytes || bytes <= 0) return 'unknown size'
   const megabytes = bytes / (1024 * 1024)
   return megabytes >= 1 ? `${megabytes.toFixed(2)} MB` : `${Math.round(bytes / 1024)} KB`
+}
+
+/**
+ * Writes a copy of the PDF with the editor's marks baked in, so the recipient
+ * opens the same thing the sender saw. Returns null when there is nothing to
+ * export or the copy could not be written.
+ */
+async function writeMarkedCopy(
+  path: string,
+  name: string,
+  annotations: PdfAnnotation[],
+): Promise<string | null> {
+  if (annotations.length === 0) return null
+  try {
+    const source = new File(path)
+    const bytes = await source.bytes()
+    const marked = await buildMarkedPdf(bytes, annotations, { flatten: false })
+    const target = new File(Paths.cache, `${name.replace(/\.pdf$/i, '')}-marked.pdf`)
+    if (target.exists) target.delete()
+    target.create()
+    target.write(marked)
+    return target.uri
+  } catch (cause) {
+    console.warn('Could not write the marked-up copy', cause)
+    return null
+  }
 }
 
 function kindOf(name: string): DocumentKind {
@@ -65,6 +92,9 @@ class ViewerErrorBoundary extends Component<
 function DocumentScreen() {
   const [document, setDocument] = useState<OpenedDocument | null>(null)
   const [selectedText, setSelectedText] = useState('')
+  // The native editor emits the full edit list after every change; the share
+  // path needs it to write the marked-up copy.
+  const annotationsRef = useRef<PdfAnnotation[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -138,7 +168,13 @@ function DocumentScreen() {
       | undefined
     if (bridge) {
       try {
-        await bridge.shareFile(document.path, mimeType, document.name)
+        // Annotated markup only lives in the editor, so the shared file is a
+        // copy with the marks written into it.
+        const marked =
+          document.kind === 'pdf'
+            ? await writeMarkedCopy(document.path, document.name, annotationsRef.current)
+            : null
+        await bridge.shareFile(marked ?? document.path, mimeType, document.name)
         return
       } catch (cause) {
         console.warn('Could not share the document file', cause)
@@ -193,6 +229,9 @@ function DocumentScreen() {
               src={document.path}
               onBack={() => setDocument(null)}
               onShare={shareDocument}
+              onAnnotationsChange={(next) => {
+                annotationsRef.current = next
+              }}
               onTextSelected={setSelectedText}
             />
         ) : document?.kind === 'docx' ? (

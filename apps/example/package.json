@@ -14,7 +14,6 @@
     "@hbox/react-native-nitro-pdf": "workspace:*",
     "@hbox/rn-docx-viewer": "workspace:*",
     "@hbox/rn-pdf-viewer": "workspace:*",
-    "@hbox/rn-pdf-viewer-tamagui": "workspace:*",
     "@shopify/flash-list": "catalog:",
     "@tamagui/config": "catalog:",
     "@tamagui/lucide-icons": "catalog:",

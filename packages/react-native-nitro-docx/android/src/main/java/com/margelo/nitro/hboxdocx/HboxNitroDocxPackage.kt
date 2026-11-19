@@ -5,6 +5,7 @@ import com.facebook.react.bridge.NativeModule
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.module.model.ReactModuleInfoProvider
 import com.facebook.react.uimanager.ViewManager
+import com.margelo.nitro.hboxdocx.views.HybridDocxEditorViewManager
 import com.margelo.nitro.hboxdocx.views.HybridDocxThumbnailManager
 import com.margelo.nitro.hboxdocx.views.HybridDocxViewManager
 
@@ -32,6 +33,6 @@ class HboxNitroDocxPackage : BaseReactPackage() {
   override fun createViewManagers(
     reactContext: ReactApplicationContext,
   ): List<ViewManager<*, *>> {
-    return listOf(HybridDocxViewManager(), HybridDocxThumbnailManager())
+    return listOf(HybridDocxViewManager(), HybridDocxThumbnailManager(), HybridDocxEditorViewManager())
   }
 }

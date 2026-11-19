@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { PanResponder, StyleSheet, View } from 'react-native'
 import Svg, { Circle, Path, Rect } from 'react-native-svg'
-import { inkPath } from './editor'
+import { inkPath, readRect } from './editor'
 import type { NewAnnotation, PdfAnnotation, PdfPoint, PdfTool } from './editor'
 
 export interface PageEditorProps {
@@ -175,18 +175,21 @@ export function PageEditor({
         <Svg width={width} height={height} style={StyleSheet.absoluteFill}>
         {pageAnnotations.map((annotation) => {
           if (annotation.kind === 'highlight') {
-            return (annotation.rects ?? []).map((rect, index) => (
-              <Rect
-                key={`${annotation.id}-${index}`}
-                x={rect.x * width}
-                y={rect.y * height}
-                width={Math.max(1, rect.width * width)}
-                height={Math.max(1, rect.height * height)}
-                fill={annotation.color}
-                fillOpacity={0.38}
-                rx={2}
-              />
-            ))
+            return (annotation.rects ?? []).map((entry, index) => {
+              const rect = readRect(entry)
+              return (
+                <Rect
+                  key={`${annotation.id}-${index}`}
+                  x={rect.x * width}
+                  y={rect.y * height}
+                  width={Math.max(1, rect.width * width)}
+                  height={Math.max(1, rect.height * height)}
+                  fill={annotation.color}
+                  fillOpacity={0.38}
+                  rx={2}
+                />
+              )
+            })
           }
           if (annotation.kind === 'ink') {
             return (
@@ -202,7 +205,9 @@ export function PageEditor({
             )
           }
           if (annotation.kind === 'signature') {
-            const box = annotation.rect ?? { x: 0, y: 0, width: SIGNATURE_WIDTH, height: SIGNATURE_HEIGHT }
+            const box = annotation.rect
+              ? readRect(annotation.rect)
+              : { x: 0, y: 0, width: SIGNATURE_WIDTH, height: SIGNATURE_HEIGHT }
             return (
               <Path
                 key={annotation.id}

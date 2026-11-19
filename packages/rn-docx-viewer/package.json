@@ -1,14 +1,18 @@
 {
   "name": "@hbox/rn-docx-viewer",
   "version": "0.0.0",
-  "description": "Native DOCX viewer for React Native with a Tamagui chrome, built on @hbox/react-native-nitro-docx",
+  "description": "Native DOCX viewer for React Native, painted with native views",
   "license": "MIT",
   "source": "./src/index.ts",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
   "react-native": "./src/index.ts",
   "sideEffects": false,
-  "files": ["src", "lib", "!**/__tests__"],
+  "files": [
+    "src",
+    "lib",
+    "!**/__tests__"
+  ],
   "scripts": {
     "build": "bob build",
     "prepack": "pnpm build",
@@ -16,18 +20,13 @@
   },
   "peerDependencies": {
     "@hbox/react-native-nitro-docx": ">=0.0.0",
-    "@tamagui/lucide-icons": "*",
     "react": "*",
     "react-native": "*",
     "react-native-nitro-modules": "*",
     "react-native-safe-area-context": "*",
-    "react-native-svg": "*",
-    "tamagui": "*"
+    "react-native-svg": "*"
   },
   "peerDependenciesMeta": {
-    "@tamagui/lucide-icons": {
-      "optional": true
-    },
     "react-native-safe-area-context": {
       "optional": true
     },
@@ -42,15 +41,24 @@
     "react-native": "catalog:",
     "react-native-builder-bob": "catalog:",
     "react-native-nitro-modules": "catalog:",
-    "tamagui": "catalog:",
     "typescript": "catalog:"
   },
   "react-native-builder-bob": {
     "source": "src",
     "output": "lib",
     "targets": [
-      ["module", { "esm": false }],
-      ["typescript", { "project": "tsconfig.build.json" }]
+      [
+        "module",
+        {
+          "esm": false
+        }
+      ],
+      [
+        "typescript",
+        {
+          "project": "tsconfig.build.json"
+        }
+      ]
     ]
   }
 }

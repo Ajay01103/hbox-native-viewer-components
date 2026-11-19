@@ -8,13 +8,17 @@
   "types": "./lib/typescript/src/index.d.ts",
   "react-native": "./src/index.ts",
   "sideEffects": false,
-  "files": ["src", "lib", "!**/__tests__"],
+  "files": [
+    "src",
+    "lib",
+    "!**/__tests__"
+  ],
   "scripts": {
     "build": "bob build",
     "prepack": "pnpm build",
     "check-types": "tsc --noEmit"
   },
-    "peerDependencies": {
+  "peerDependencies": {
     "@hbox/react-native-nitro-pdf": ">=0.0.0",
     "@shopify/flash-list": "*",
     "react": "*",
@@ -37,8 +41,21 @@
     "source": "src",
     "output": "lib",
     "targets": [
-      ["module", { "esm": false }],
-      ["typescript", { "project": "tsconfig.build.json" }]
+      [
+        "module",
+        {
+          "esm": false
+        }
+      ],
+      [
+        "typescript",
+        {
+          "project": "tsconfig.build.json"
+        }
+      ]
     ]
+  },
+  "dependencies": {
+    "pdf-lib": "^1.17.1"
   }
 }

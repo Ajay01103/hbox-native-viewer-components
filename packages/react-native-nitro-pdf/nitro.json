@@ -1,11 +1,15 @@
 {
   "$schema": "https://nitro.margelo.com/nitro.schema.json",
-  "cxxNamespace": ["hboxpdf"],
+  "cxxNamespace": [
+    "hboxpdf"
+  ],
   "ios": {
     "iosModuleName": "HboxNitroPdf"
   },
   "android": {
-    "androidNamespace": ["hboxpdf"],
+    "androidNamespace": [
+      "hboxpdf"
+    ],
     "androidCxxLibName": "HboxNitroPdf"
   },
   "autolinking": {
@@ -28,7 +32,19 @@
         "language": "kotlin",
         "implementationClassName": "HybridPdfPageView"
       }
+    },
+    "PdfEditorView": {
+      "ios": {
+        "language": "swift",
+        "implementationClassName": "HybridPdfEditorView"
+      },
+      "android": {
+        "language": "kotlin",
+        "implementationClassName": "HybridPdfEditorView"
+      }
     }
   },
-  "ignorePaths": ["node_modules"]
+  "ignorePaths": [
+    "node_modules"
+  ]
 }

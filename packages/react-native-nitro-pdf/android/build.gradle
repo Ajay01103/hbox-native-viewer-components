@@ -57,6 +57,14 @@ android {
     prefab true
   }
 
+  // The mark and selection geometry is pure Kotlin, so it is tested on the
+  // JVM without an emulator.
+  testOptions {
+    unitTests {
+      includeAndroidResources = true
+    }
+  }
+
 
 
   compileOptions {
@@ -82,6 +90,7 @@ repositories {
 }
 
 dependencies {
+  testImplementation "junit:junit:4.13.2"
   // Replaced by the React Gradle plugin with the app's RN version.
   //noinspection GradleDynamicVersion
   implementation "com.facebook.react:react-native:+"

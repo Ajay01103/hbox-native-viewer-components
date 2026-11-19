@@ -3,6 +3,7 @@ package com.margelo.nitro.hboxdocx
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.Typeface
 import android.text.SpannableStringBuilder
 import android.text.Spanned
@@ -48,6 +49,78 @@ internal class DocxLayout private constructor(
     val clamped = offset.coerceIn(0, maxOf(0, content.length - 1))
     val line = layout.getLineForOffset(clamped).coerceIn(0, layout.lineCount - 1)
     return pageOfLine[line] + 1
+  }
+
+  /** First and last layout line drawn on a page. */
+  fun lineRangeOf(pageIndex: Int): IntRange {
+    if (layout.lineCount == 0) return 0..0
+    val page = pageIndex.coerceIn(0, maxOf(0, pageCount - 1))
+    val first = pageFirstLine.getOrElse(page) { 0 }
+    val last = pageFirstLine.getOrNull(page + 1)?.minus(1) ?: (layout.lineCount - 1)
+    return first..last
+  }
+
+  /**
+   * Character offset for a point in page space (points, origin at the page's
+   * top-left). Used for text selection: the whole document is one
+   * `StaticLayout`, so hit testing is exact rather than an estimate.
+   */
+  fun offsetForPoint(pageIndex: Int, xPoint: Float, yPoint: Float): Int {
+    if (layout.lineCount == 0) return 0
+    val geometry = model.geometry
+    val lines = lineRangeOf(pageIndex)
+    val lineY = yPoint - geometry.marginTop + layout.getLineTop(lines.first)
+    val line = layout.getLineForVertical(lineY.toInt()).coerceIn(lines.first, lines.last)
+    val x = (xPoint - geometry.marginLeft).coerceAtLeast(0f)
+    return layout.getOffsetForHorizontal(line, x)
+  }
+
+  /** Word around [offset]: a run of letters and digits, or the hit character. */
+  fun wordRangeAt(offset: Int): Pair<Int, Int> {
+    if (content.isEmpty()) return 0 to 0
+    var start = offset.coerceIn(0, content.length - 1)
+    var end = start
+    while (start > 0 && content[start - 1].isLetterOrDigit()) start--
+    while (end < content.length && content[end].isLetterOrDigit()) end++
+    if (start == end) end = (start + 1).coerceAtMost(content.length)
+    return start to end
+  }
+
+  fun textBetween(start: Int, end: Int): String {
+    val from = minOf(start, end).coerceIn(0, content.length)
+    val to = maxOf(start, end).coerceIn(0, content.length)
+    return content.subSequence(from, to).toString()
+  }
+
+  /** One rectangle per selected line, in page space (points). */
+  fun selectionRects(pageIndex: Int, start: Int, end: Int): List<RectF> {
+    val lines = lineRangeOf(pageIndex)
+    if (layout.lineCount == 0) return emptyList()
+    val from = minOf(start, end)
+    val to = maxOf(start, end)
+    if (to <= from) return emptyList()
+    val geometry = model.geometry
+    val firstTop = layout.getLineTop(lines.first)
+    val rects = ArrayList<RectF>()
+    for (line in lines.first..lines.last) {
+      val lineStart = layout.getLineStart(line)
+      val lineEnd = layout.getLineEnd(line)
+      if (lineEnd <= from || lineStart >= to) continue
+      val s = maxOf(from, lineStart)
+      val e = minOf(to, lineEnd)
+      var left = layout.getPrimaryHorizontal(s)
+      var right = layout.getPrimaryHorizontal(e)
+      if (right < left) {
+        val swap = left
+        left = right
+        right = swap
+      }
+      if (right - left < 0.4f) continue
+      val top = geometry.marginTop + (layout.getLineTop(line) - firstTop)
+      val bottom = geometry.marginTop + (layout.getLineBottom(line) - firstTop)
+      rects.add(RectF(geometry.marginLeft + left, top, geometry.marginLeft + right, bottom))
+    }
+    return rects
   }
 
   fun pageText(pageIndex: Int): String {
